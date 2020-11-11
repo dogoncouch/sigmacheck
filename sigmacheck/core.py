@@ -27,8 +27,7 @@ from os.path import isfile
 from yaml import full_load as yaml_full_load
 from json import loads as json_loads
 
-__version__ = '0.1'
-
+from sigmacheck import __version__
 
 class SigmaCheckCore:
 
@@ -41,6 +40,7 @@ class SigmaCheckCore:
                 dest = 'subcommand',
                 help = 'sigmacheck [subcommand] -h for more information')
         self.parse_args()
+        self.rules = []
 
 
     def parse_args(self):
@@ -63,15 +63,35 @@ class SigmaCheckCore:
                 help = 'check events against Sigma rule conditions')
         self.checkparser.description = 'Check events against Sigma rule ' + \
                 'conditions'
+        self.checkparser.add_argument('-j', '--json',
+                action = 'store_true',
+                help = 'load Sigma rules from JSON format')
+        self.checkparser.add_argument('files',
+                metavar = 'file', nargs = '+',
+                help = 'input file containing Sigma rules')
+        self.checkparser.add_argument('eventfiles',
+                metavar = 'event_file', nargs = '+',
+                help = 'input file containing events in JSON format')
+
+        self.convertparser = self.subparsers.add_parser('convert',
+                help = 'convert Sigma rules between formats')
+        self.convertparser.description = 'Convert Sigma rules between formats'
+        formatgroup = self.convertparser.add_mutually_exclusive_group()
+        formatgroup.add_argument('-y', '--toyaml',
+                action = 'store_true',
+                help = 'output rules in YAML format')
+        formatgroup.add_argument('-j', '--tojson',
+                action = 'store_true',
+                help = 'output rules in JSON format')
         self.checkparser.add_argument('files',
                 metavar = 'file', nargs = '*',
                 help = 'input file containing Sigma rules in YAML format')
         self.checkparser.add_argument('jsonfiles',
                 metavar = 'json_file', nargs = '*',
                 help = 'input file containing Sigma rules in JSON format')
-        self.checkparser.add_argument('eventfiles',
-                metavar = 'event_file', nargs = '+',
-                help = 'input file containing events in JSON format')
+        self.checkparser.add_argument('-o', '--output',
+                required = True,
+                help = 'output file for converted Sigma rules')
 
         self.args = self.arg_parser.parse_args()
 
@@ -88,6 +108,29 @@ class SigmaCheckCore:
         pass
 
 
+    def load_rules(self):
+        """Load Sigma rules from files"""
+        for f in self.args.files:
+            if self.args.json:
+                newrules = load_json(f)
+                for rule in newrules:
+                    validation = validate(rule)
+                    if validation:
+                        print(validation)
+                    else:
+                        self.rules.append(rule)
+                #self.rules.append(load_json(f))
+            else:
+                newrules = load(f)
+                for rule in newrules:
+                    validation = validate(rule)
+                    if validation:
+                        print(validation)
+                    else:
+                        self.rules.append(rule)
+                #self.rules.append(load(f))
+
+
     def run(self):
         """Run the program"""
         try:
@@ -100,15 +143,34 @@ class SigmaCheckCore:
 
 # Backend functions (should be easily used from Python shell/Jupyter/etc)
 
-def check(rules, event):
-    """Evaluate an event against a Sigma rule"""
+def check(rules, events):
+    """Evaluate events against a Sigma rule"""
+    # Dedup events and rules before starting to save CPU time?
+    # Keep record of removed events so if one event matches, others will, too
+    # No need to keep record of duplicate rules
     pass
 
 
 def validate(rules):
+    """Validate Sigma rules for sanity (assumes cleanly loaded rule)"""
+    if isinstance(rules, list):
+        for rule in rules:
+            validaterule(rule)
+            # Validate rule sanity
+            # Return False if no problems, else string with error description
+            # Errors should be useful in diagnosing rule format errors, etc
+        pass
+    else:
+        validaterule(rule)
+        # Validate single rule for sanity, same as above
+
+
+def validaterule(rule):
     """Validate a Sigma rule for sanity (assumes cleanly loaded rule)"""
     for rule in rules:
         # Validate rule sanity
+        # Return False if no problems, string with error description otherwise
+        # Errors should be useful in diagnosing rule format errors, etc
         pass
 
 
